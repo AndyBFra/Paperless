@@ -1,0 +1,75 @@
+# Paperless-ngx auf Andyserver — Postgres + Tika + Gotenberg.
+#
+# Abgeleitet vom offiziellen Template docker/compose/docker-compose.postgres-tika.yml
+# (https://github.com/paperless-ngx/paperless-ngx). Angepasst gegenueber dem Default:
+#   - webserver-Image auf feste Version gepinnt (statt :latest)
+#   - data / media / consume / export sind Bind-Mounts auf den Host (Pfade aus .env),
+#     damit die Dokumentenablage portabel ist und spaeter auf die externe SSD umziehen
+#     kann. Nur media MUSS mit umziehen; siehe README.
+#   - db (Postgres) und broker (Redis) bleiben Docker-Named-Volumes -> in der Colima-VM
+#     auf der internen SSD. Begruendung wie bei Immich: eine Datenbank gehoert nicht auf
+#     eine extern angesteckte Platte (Korruptionsrisiko bei Trennung / Sleep).
+#   - DB-Passwort und Port aus .env
+#
+# Laeuft auf der bereits vorhandenen Colima-Docker-Runtime (gemeinsam mit Immich).
+# Bedienung: docker-compose (mit Bindestrich), siehe README.
+
+services:
+  broker:
+    image: docker.io/valkey/valkey:9-alpine
+    restart: unless-stopped
+    volumes:
+      - redisdata:/data
+
+  db:
+    image: docker.io/library/postgres:18
+    restart: unless-stopped
+    volumes:
+      - pgdata:/var/lib/postgresql
+    environment:
+      POSTGRES_DB: paperless
+      POSTGRES_USER: paperless
+      POSTGRES_PASSWORD: ${PAPERLESS_DBPASS}
+
+  webserver:
+    image: ghcr.io/paperless-ngx/paperless-ngx:3.1.0
+    restart: unless-stopped
+    depends_on:
+      - db
+      - broker
+      - gotenberg
+      - tika
+    ports:
+      - "${PAPERLESS_PORT:-8000}:8000"
+    volumes:
+      - ${PAPERLESS_DATA_LOCATION:-./data}:/usr/src/paperless/data
+      - ${PAPERLESS_MEDIA_LOCATION:-./media}:/usr/src/paperless/media
+      - ${PAPERLESS_EXPORT_LOCATION:-./export}:/usr/src/paperless/export
+      - ${PAPERLESS_CONSUME_LOCATION:-./consume}:/usr/src/paperless/consume
+    env_file: docker-compose.env
+    environment:
+      PAPERLESS_REDIS: redis://broker:6379
+      PAPERLESS_DBHOST: db
+      PAPERLESS_DBENGINE: postgresql
+      PAPERLESS_DBPASS: ${PAPERLESS_DBPASS}
+      PAPERLESS_TIKA_ENABLED: 1
+      PAPERLESS_TIKA_GOTENBERG_ENDPOINT: http://gotenberg:3000
+      PAPERLESS_TIKA_ENDPOINT: http://tika:9998
+
+  gotenberg:
+    image: docker.io/gotenberg/gotenberg:8.34
+    restart: unless-stopped
+    # Die Chromium-Route von Gotenberg wird zum Konvertieren von .eml-Dateien genutzt.
+    # Kein JavaScript, keine externen Ressourcen (Tracking-Pixel etc.).
+    command:
+      - "gotenberg"
+      - "--chromium-disable-javascript=true"
+      - "--chromium-allow-list=file:///tmp/.*"
+
+  tika:
+    image: docker.io/apache/tika:3.3.1.0
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  redisdata:
