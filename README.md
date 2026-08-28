@@ -7,8 +7,8 @@ Läuft komplett containerisiert auf der **bereits vorhandenen Colima-Docker-Runt
 
 > **Stand: Proof of Concept.** Alle Daten liegen aktuell lokal unter `~/Servers/Paperless/`.
 > Die Dokumentenablage (`media/`) zieht später auf die externe SSD um — siehe
-> [Externe Platte](#externe-platte-für-die-dokumente-geplant). Autostart per launchd ist
-> vorbereitet, aber noch **nicht installiert** (siehe [Autostart](#autostart-launchd)).
+> [Externe Platte](#externe-platte-für-die-dokumente-geplant). Autostart per launchd
+> ist installiert und aktiv (`local.paperless`, 2026-08-28).
 
 ---
 
@@ -90,9 +90,11 @@ werden als Tags übernommen (`PAPERLESS_CONSUMER_SUBDIRS_AS_TAGS`).
 
 ## Autostart (launchd)
 
-Vorbereitet, aber **noch nicht aktiv**. Muster wie bei Immich: **LaunchDaemon** in der
+Installiert und aktiv seit 2026-08-28. Muster wie bei Immich: **LaunchDaemon** in der
 `system`-Domain (nicht LaunchAgent), damit der Dienst unabhängig von einer eingeloggten
-GUI-Session läuft.
+GUI-Session läuft. Das Skript ist ein Run-once-Job (`docker-compose up -d`, dann Ende) —
+`launchctl print system/local.paperless` zeigt daher `state = not running` bei
+`last exit code = 0`, das ist korrekt.
 
 - `start-paperless.sh` — wartet bis zu 5 Min auf Docker (VM-Boot) und macht dann `docker-compose up -d`.
   Startet Colima **nicht** selbst — dafür ist `local.colima` zuständig (mit Fallback in
@@ -101,7 +103,7 @@ GUI-Session läuft.
   Absicherung für den Fall, dass Colima erst spät bereit ist.
 - `local.paperless.plist` — der Daemon. Quelldatei liegt hier im Repo zur Referenz.
 
-**Installieren** (einmalig, braucht `sudo`):
+**Installieren** (einmalig, braucht `sudo` — bereits erledigt):
 
 ```bash
 sudo cp ~/Servers/Paperless/local.paperless.plist /Library/LaunchDaemons/
@@ -185,9 +187,7 @@ Empfehlung sobald produktiv: nächtlicher `document_exporter` + Kopie außer Hau
 
 ## Sicherheit / offene Punkte
 
-- [ ] **Autostart-Daemon installieren** (`sudo`, s.o.) — aktuell startet Paperless nach einem
-      Reboot nur mit, weil die Container `restart: unless-stopped` haben; der Daemon ist die
-      saubere Absicherung.
+- [x] **Autostart-Daemon installiert** (`local.paperless`, 2026-08-28)
 - [ ] **HTTPS** via nginx + mkcert (analog PrivatPortfolio) — aktuell nur HTTP im LAN
 - [ ] **`media/` auf externe SSD** umziehen, sobald vorhanden
 - [ ] **Backup** einrichten (nächtlicher `document_exporter`)
