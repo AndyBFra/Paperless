@@ -4,8 +4,7 @@
 # (https://github.com/paperless-ngx/paperless-ngx). Angepasst gegenueber dem Default:
 #   - webserver-Image auf feste Version gepinnt (statt :latest)
 #   - data / media / consume / export sind Bind-Mounts auf den Host (Pfade aus .env),
-#     damit die Dokumentenablage portabel ist und spaeter auf die externe SSD umziehen
-#     kann. Nur media MUSS mit umziehen; siehe README.
+#     seit 2026-08-31 auf der externen SSD /Volumes/ServerData/paperless/ (siehe README).
 #   - db (Postgres) und broker (Redis) bleiben Docker-Named-Volumes -> in der Colima-VM
 #     auf der internen SSD. Begruendung wie bei Immich: eine Datenbank gehoert nicht auf
 #     eine extern angesteckte Platte (Korruptionsrisiko bei Trennung / Sleep).

@@ -5,10 +5,10 @@ Dritter Dienst auf **Andyserver** (Mac Mini), neben Immich und PrivatPortfolio.
 Läuft komplett containerisiert auf der **bereits vorhandenen Colima-Docker-Runtime**
 (dieselbe VM wie Immich) über Docker Compose — offizielles Paperless-ngx-Deployment.
 
-> **Stand: Proof of Concept.** Alle Daten liegen aktuell lokal unter `~/Servers/Paperless/`.
-> Die Dokumentenablage (`media/`) zieht später auf die externe SSD um — siehe
-> [Externe Platte](#externe-platte-für-die-dokumente-geplant). Autostart per launchd
-> ist installiert und aktiv (`local.paperless`, 2026-08-28).
+> **Stand:** Dokumentenablage (`media/` + `data/` + `consume/` + `export/`) liegt seit
+> 2026-08-31 auf der externen SSD `/Volumes/ServerData/paperless/` — siehe
+> [Externe Platte](#externe-platte-für-die-dokumente). Postgres/Redis bleiben als
+> Docker-Volumes intern. Autostart per launchd aktiv (`local.paperless`, 2026-08-28).
 
 ---
 
@@ -49,8 +49,8 @@ Nur im LAN, kein HTTPS, kein Internet-Zugriff (analog Immich).
   Angepasst gegenüber dem Default:
   - webserver-Image **auf `3.1.0` gepinnt** statt `:latest`
   - `data` / `media` / `consume` / `export` sind **Bind-Mounts auf den Host** (Pfade aus `.env`)
-    statt Docker-Named-Volumes — damit die Ablage portabel ist und `media` später auf die externe
-    SSD umziehen kann
+    statt Docker-Named-Volumes — damit die Ablage portabel ist; liegen seit 2026-08-31 auf der
+    externen SSD (`/Volumes/ServerData/paperless/`, siehe [Externe Platte](#externe-platte-für-die-dokumente))
   - `db` (Postgres) und `broker` (Redis) bleiben **Named Volumes** → in der Colima-VM auf der
     internen SSD. Begründung wie bei Immich: eine Datenbank gehört **nicht** auf eine extern
     angesteckte Platte (Korruption bei Trennung / Sleep)
@@ -125,36 +125,36 @@ Container von selbst (`restart: unless-stopped`) bzw. via `local.paperless`. Rec
 
 ---
 
-## Externe Platte für die Dokumente (geplant)
+## Externe Platte für die Dokumente
 
-Sobald die externe SSD am Server hängt, zieht **nur `media/`** (Originale + Archiv-PDFs) auf die
-Platte um. `data/` (Suchindex, Klassifikator — aus den Dokumenten neu aufbaubar) und die
-**Postgres-DB bleiben auf der internen SSD** (Begründung siehe Immich-README: DB nicht auf
-extern angesteckte Platte).
+**Umgezogen am 2026-08-31.** `media/`, `data/`, `consume/`, `export/` liegen jetzt unter
+`/Volumes/ServerData/paperless/` (externe USB-SSD, APFS, dieselbe Platte wie Immichs Library).
+**Postgres (`paperless_pgdata`) und Redis (`paperless_redisdata`) bleiben Docker-Volumes** in
+der Colima-VM auf der internen SSD — DB gehört nicht auf eine extern angesteckte Platte.
 
-Die externe SSD kommt bei Colima (`vz`, kein USB-Passthrough) per virtiofs über `/Volumes/<Name>`
-in die VM — derselbe Weg wie die Bind-Mounts jetzt.
+Die Platte ist in `~/.colima/default/colima.yaml` als virtiofs-Mount eingetragen (zusammen mit
+`/Users/andy` — **beide** müssen dort stehen, sonst mountet Colima `$HOME` nicht mehr; siehe
+Immich-README). Kein Colima-Neustart für Paperless nötig, der Mount war schon da.
 
-### Schritte für den Umzug
+### Start-Absicherung
+
+`start-paperless.sh` prüft vor `docker-compose up` die Sentinel-Datei
+`/Volumes/ServerData/paperless/.disk-present`. Fehlt sie (Platte nicht gemountet), startet
+Paperless **nicht** — sonst legt es leere Verzeichnisse an und „verliert" alle Dokumente. Ist
+die Platte am Host, aber nicht in der VM sichtbar, macht das Skript einmal `colima restart`.
+
+### Kür für den Umzug (falls nochmal nötig)
 
 ```bash
-cd ~/Servers/Paperless
-docker-compose down
-mkdir -p /Volumes/<PLATTE>/paperless
-rsync -aH --info=progress2 media/ /Volumes/<PLATTE>/paperless/media/
+cd ~/Servers/Paperless && docker-compose down
+mkdir -p /Volumes/ServerData/paperless
+rsync -aH data media consume export /Volumes/ServerData/paperless/
+date > /Volumes/ServerData/paperless/.disk-present
+# .env: die 4 PAPERLESS_*_LOCATION auf /Volumes/ServerData/paperless/<name>
+docker-compose up -d
+# UI: Dokument öffnen (Original + Archiv-PDF laden), Suche testen, Doku-Anzahl prüfen
+# dann altes data/ media/ consume/ export/ löschen
 ```
-
-Dann in `.env` setzen:
-
-```
-PAPERLESS_MEDIA_LOCATION=/Volumes/<PLATTE>/paperless/media
-```
-
-`docker-compose up -d`, in der UI ein Dokument öffnen (lädt Original + Archiv-PDF → beide Pfade
-ok), dann altes `media/` löschen. `PAPERLESS_CONSUMER_POLLING` bleibt gesetzt (virtiofs).
-
-> Prüfen, ob die Platte in den macOS-Energieeinstellungen **nicht in den Ruhezustand** geht,
-> solange der Server läuft.
 
 ---
 
@@ -162,10 +162,10 @@ ok), dann altes `media/` löschen. `PAPERLESS_CONSUMER_POLLING` bleibt gesetzt (
 
 | Pfad | Inhalt |
 |---|---|
-| `~/Servers/Paperless/media` | **Die Dokumente** (Originale + OCR-Archiv-PDFs) — zieht später auf die externe SSD |
-| `~/Servers/Paperless/data` | Suchindex, Klassifikator-Modell, Logs — bleibt lokal |
-| `~/Servers/Paperless/consume` | Import-Ordner (hier abgelegte Dateien werden eingelesen) |
-| `~/Servers/Paperless/export` | Ziel für `document_exporter` (Backups) |
+| `/Volumes/ServerData/paperless/media` | **Die Dokumente** (Originale + OCR-Archiv-PDFs + Thumbnails) — externe SSD |
+| `/Volumes/ServerData/paperless/data` | Suchindex, Klassifikator-Modell, Logs (regenerierbar) |
+| `/Volumes/ServerData/paperless/consume` | Import-Ordner (hier abgelegte Dateien werden eingelesen) |
+| `/Volumes/ServerData/paperless/export` | Ziel für `document_exporter` (Backups) |
 | Docker-Volume `paperless_pgdata` | PostgreSQL-Daten (in der Colima-VM) |
 | Docker-Volume `paperless_redisdata` | Redis-Queue (in der Colima-VM) |
 
@@ -188,9 +188,10 @@ Empfehlung sobald produktiv: nächtlicher `document_exporter` + Kopie außer Hau
 ## Sicherheit / offene Punkte
 
 - [x] **Autostart-Daemon installiert** (`local.paperless`, 2026-08-28)
+- [x] **Dokumentenablage auf externe SSD** umgezogen (2026-08-31) — `/Volumes/ServerData/paperless/`
 - [ ] **HTTPS** via nginx + mkcert (analog PrivatPortfolio) — aktuell nur HTTP im LAN
-- [ ] **`media/` auf externe SSD** umziehen, sobald vorhanden
-- [ ] **Backup** einrichten (nächtlicher `document_exporter`)
+- [ ] **Backup** einrichten (nächtlicher `document_exporter`) — media/data liegen auf derselben
+      externen Platte wie Immich; Dumps/Exports sollten woanders hin (interne SSD / NAS)
 - [ ] Ersteinrichtung in der UI: Korrespondenten / Dokumenttypen / Tags anlegen, ggf.
       Mail-Konten für automatischen E-Mail-Import (`paperless_mail`)
 - Kein Internet-Zugriff eingerichtet. Falls gewünscht: echtes Zertifikat (Let's Encrypt),
