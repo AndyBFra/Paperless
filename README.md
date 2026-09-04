@@ -82,9 +82,21 @@ Nur im LAN, kein HTTPS, kein Internet-Zugriff (analog Immich).
 | Suchindex neu bauen | `docker-compose exec webserver python3 manage.py document_index reindex` |
 | Colima hängt | `bash ~/Servers/Immich/start-colima.sh` (siehe Immich-README) |
 
-**Dokumente importieren:** Dateien einfach nach `~/Servers/Paperless/consume/` kopieren — werden
-innerhalb von ~30 s eingelesen, OCR-verarbeitet und danach aus `consume/` entfernt. Unterordner
-werden als Tags übernommen (`PAPERLESS_CONSUMER_SUBDIRS_AS_TAGS`).
+**Dokumente importieren:** Dateien einfach nach `/Volumes/ServerData/paperless/consume/` kopieren —
+werden innerhalb von ~30 s eingelesen, OCR-verarbeitet und danach aus `consume/` entfernt.
+Unterordner werden als Tags übernommen (`PAPERLESS_CONSUMER_SUBDIRS_AS_TAGS`). Exakte
+Datei-Dubletten (SHA-256-Treffer auf ein bestehendes oder im Papierkorb liegendes Dokument)
+werden dank `PAPERLESS_CONSUMER_DELETE_DUPLICATES=true` automatisch verworfen statt erneut
+angelegt.
+
+**Scans vom HP-Drucker (via alte NAS):** Der Drucker scannt auf die NAS `bormankserver`
+(SMB-Freigabe `ScanAndy`), nicht direkt nach `consume/` — ein Live-SMB-Consume-Ordner würde die
+NAS-Platten alle paar Sekunden aus dem Ruhezustand holen. Stattdessen holt
+[`~/scripts/sync-nas-scans.sh`](../../scripts/sync-nas-scans.sh) (auf dem Mac, außerhalb dieses
+Repos) die Scans **manuell per SSH-Aufruf** ab: mountet die Freigabe kurz, verschiebt per
+`rsync --remove-source-files` alles nach `consume/` (verschieben statt kopieren, damit die
+NAS-Freigabe nicht unbegrenzt wächst und jeder Lauf nur echte Neuzugänge sieht) und hängt die NAS
+wieder aus. Details und Setup (Schlüsselbund-Passwort) im Skript-Kommentar.
 
 ---
 
