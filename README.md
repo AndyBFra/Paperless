@@ -188,15 +188,18 @@ docker-compose up -d
 
 ## Backup
 
-Noch nicht eingerichtet. Zwei Wege:
+Läuft bereits, aber **außerhalb dieses Repos**: `~/Servers/claude/backup/` (dienstübergreifend,
+auch für Immich) sichert automatisch — LaunchAgent `com.andy.backup`, täglich 05:00:
 
-1. **`document_exporter`** (s.o.) — schreibt Dokumente + Metadaten als portables Verzeichnis nach
-   `./export/`. Unabhängig von Postgres-Version, für Migration/Archiv geeignet. Idealerweise per
-   Cron + anschließendem Sync auf NAS / externe Platte.
-2. **Dateiebene**: `media/` + `data/` sichern **und** `pg_dump` der DB
-   (`docker-compose exec db pg_dump -U paperless paperless > dump.sql`).
+- **DB**: `pg_dump -Fc` der Paperless-DB (+ `pg_dumpall` für Immich), Verify, Rotation
+  (7 täglich / 4 wöchentlich), Push per `rsync` über SSH zur NAS (`bormankserver:/mnt/md1/ServerBackup/db/`)
+- **Media**: `rsync --delete-delay` von `/Volumes/ServerData/paperless/{media,data}` zur NAS
+  (`.../paperless-media/`, `.../paperless-data/`) — eigener Lock, damit ein langer Erst-Sync
+  („Seed", einmalig ~40 h für den kompletten Bestand) den nächtlichen DB-Lauf nicht blockiert
 
-Empfehlung sobald produktiv: nächtlicher `document_exporter` + Kopie außer Haus.
+Details/Restore: `~/Servers/claude/backup/README.md` bzw. `RESTORE.md`. `document_exporter`
+(s.o.) bleibt zusätzlich für portable Exporte/Migration nützlich, ist aber kein Ersatz für dieses
+Backup.
 
 ---
 
@@ -205,8 +208,8 @@ Empfehlung sobald produktiv: nächtlicher `document_exporter` + Kopie außer Hau
 - [x] **Autostart-Daemon installiert** (`local.paperless`, 2026-08-28)
 - [x] **Dokumentenablage auf externe SSD** umgezogen (2026-08-31) — `/Volumes/ServerData/paperless/`
 - [ ] **HTTPS** via nginx + mkcert (analog PrivatPortfolio) — aktuell nur HTTP im LAN
-- [ ] **Backup** einrichten (nächtlicher `document_exporter`) — media/data liegen auf derselben
-      externen Platte wie Immich; Dumps/Exports sollten woanders hin (interne SSD / NAS)
+- [x] **Backup eingerichtet** (2026-09-03) — `~/Servers/claude/backup/`, täglich 05:00 zur NAS,
+      s.o. Initialer Media-Seed (~40 h) lief zum Zeitpunkt dieses Eintrags noch
 - [ ] Ersteinrichtung in der UI: Korrespondenten / Dokumenttypen / Tags anlegen, ggf.
       Mail-Konten für automatischen E-Mail-Import (`paperless_mail`)
 - Kein Internet-Zugriff eingerichtet. Falls gewünscht: echtes Zertifikat (Let's Encrypt),
