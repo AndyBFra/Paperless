@@ -93,10 +93,13 @@ angelegt.
 (SMB-Freigabe `ScanAndy`), nicht direkt nach `consume/` — ein Live-SMB-Consume-Ordner würde die
 NAS-Platten alle paar Sekunden aus dem Ruhezustand holen. Stattdessen holt
 [`~/scripts/sync-nas-scans.sh`](../../scripts/sync-nas-scans.sh) (auf dem Mac, außerhalb dieses
-Repos) die Scans **manuell per SSH-Aufruf** ab: mountet die Freigabe kurz, verschiebt per
-`rsync --remove-source-files` alles nach `consume/` (verschieben statt kopieren, damit die
-NAS-Freigabe nicht unbegrenzt wächst und jeder Lauf nur echte Neuzugänge sieht) und hängt die NAS
-wieder aus. Details und Setup (Schlüsselbund-Passwort) im Skript-Kommentar.
+Repos) die Scans **manuell per SSH-Aufruf** ab: mountet die Freigabe kurz, kopiert neue Scans
+zuerst dauerhaft nach `ScanAndy/archive/` auf der NAS (permanenter Zugriff auf alle Dokumente
+direkt über die NAS, wächst bewusst unbegrenzt), verschiebt dieselben Dateien dann per
+`rsync --remove-source-files` vom Freigaben-Wurzelverzeichnis nach `consume/` (verschieben statt
+kopieren, damit der Eingangs-Ordner nicht unbegrenzt wächst und jeder Lauf dort nur echte
+Neuzugänge sieht) und hängt die NAS wieder aus. Details und Setup (Schlüsselbund-Passwort) im
+Skript-Kommentar.
 
 ---
 
